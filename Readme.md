@@ -15,11 +15,53 @@ The additional board is called ```genesysII```.
 
 # gcc
 
-https://github.com/riscv-collab/riscv-gnu-toolchain.git
+This section instructs on how to setup gcc. The toolchain that you should use is riscv-unknown-elf-gcc. You may find it online or with your package manager.
 
-A first point is to rebuild gcc from sources, changing an option.
+Sometimes it might be called riscv-unknown-elf-gcc, or riscv64-unknown-elf-gcc. If it's called riscv32-unknown-elf-gcc it probably only supports 32bit ISA. The important thing is that it supports the ```march=rv64imac_zicsr``` and ```mabi=lp64``` . You can check it with ```riscv{}-unknown-elf-gcc -dumpspecs``` and look for the required ones. 
 
-The problem is due to using 64 bit processor. I chose the 64 bit version because the partial porting (of cva6 to Zephyr) I borrowed used this version. I 
+I wonder if it might be enough to just use the version shipped with zephy-sdk, which is however is called ```riscv64-zephyr-elf-gcc```.
+
+Try building any baremetal application from [cva6-baremetal-bsp](cva6-baremetal-bsp).
+
+If you encounter the error ```relocation truncated to fit: R_RISCV_HI20 against symbol ...``` you are unlucky, but at least you don't have to look for the solution alone. The problem comes from trying to build a 64bit executable. With the bigger addressing space, new relocations are required for jumping between functions in the standard library and the memory model should be different. The standard library is compiled with the memory model ```medlow```, but here we require ```medany```. Unfortunately the majority of precompiled riscv toolchains are compiled with the standard one, so in order to enable ```madany``` we have to recompile gcc.
+
+To do so clone the main repository:
+```
+git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git
+```
+Follow the tutorial on the original repository, to install the required dependencies. Then return here for the actual compilation.
+
+```bash
+cd riscv-gnu-toolchain
+./configure --target=riscv64-unknown-elf --prefix=$HOME/.local --enable-multilib --with-abi=lp64d --with-arch=rv64imafdc --with-cmodel=medany
+make newlib
+```
+The prefix can be any directory (even opt), just ensure you (not root) have write privilege on that one.
+This command should compile a riscv64-unknown-elf-gcc library which supports also 32 bit compilation.
+remember you can add ```-j$NPROC``` to build on more cores and just be patient.
+
+When finished remember to add HOME/.local/bin to your PATH environment variable.
+
+# cva6-baremetal-bsp
+
+Project forked from openhwgroup with some baremetal applications useful for testing cva6 features without a fully featured OS like Zephyr.
+
+To build any app, go in the [app](cva6-baremetal-bsp/app) foldes and use
+
+```bash
+make all XLEN=64
+```
+If your toolchain is riscv-unknown... you can build with
+```bash
+make all XLEN=""
+```
+If interested in only building a single app you can set the variable ```bmarks``` like
+```bash
+make all XLEN=64 bmarks=soc_context_test
+```
+Indeed, soc_context_test, helloworld, and helloworld_printf are the only ones I tested.
+
+If you encounter the infamous error ```relocation truncated to fit: R_RISCV_HI20 against symbol``` it probably means that you have to recompile gcc. The explanation is in gcc section.
 
 # Vivado
 
@@ -28,6 +70,8 @@ Vivado version 2020.2 . The choice is due to this version being the last one com
 https://www.xilinx.com/member/forms/download/xef.html?filename=Xilinx_Unified_2020.2_1118_1232.tar.gz
 
 Unfortunately, the only option is to download a single big file as the online installer (which downloads a small program from browser and then manages the download on its own) is not anymore supported.
+
+While installing vivado, you can reduce the total install size by opting out the majority of supported FPGAs. Those we might be interested in are 
 
 # Cva6 Project
 
