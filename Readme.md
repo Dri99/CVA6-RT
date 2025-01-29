@@ -15,11 +15,23 @@ The additional board is called ```genesysII```.
 
 # gcc
 
-This section instructs on how to setup gcc. The toolchain that you should use is riscv-unknown-elf-gcc. You may find it online or with your package manager.
+This section instructs on how to setup gcc. Usually distro's package managers ships some prebuilt toolchain version, like ```gcc-riscv64-unknown-elf``` on Ubuntu.
+Sometimes it might be called riscv-unknown-elf-gcc, or riscv64-unknown-elf-gcc. If it's called riscv32-unknown-elf-gcc it probably only supports 32bit ISA. The important thing is that it supports the ```march=rv64imac_zicsr``` and ```mabi=lp64``` . You can check it with ```riscv{}-unknown-elf-gcc -dumpspecs``` and look for the required ones.
+However these versions are often poor of features and additional extensions.
 
-Sometimes it might be called riscv-unknown-elf-gcc, or riscv64-unknown-elf-gcc. If it's called riscv32-unknown-elf-gcc it probably only supports 32bit ISA. The important thing is that it supports the ```march=rv64imac_zicsr``` and ```mabi=lp64``` . You can check it with ```riscv{}-unknown-elf-gcc -dumpspecs``` and look for the required ones. 
+I found complete and prebuilt toolchain, managed by [xpack](https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack). 
 
-I wonder if it might be enough to just use the version shipped with zephy-sdk, which is however is called ```riscv64-zephyr-elf-gcc```.
+Go [this link](https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases) and download the latest toolchain riscv-none-elf for linux x86. 
+
+```cd``` to a convenient directory; I put mine in ```$HOME/.local```, but also ```/opt``` is good.
+After downloading it, extract with:
+
+```
+tar -xvf ~/Downloads/xpack-riscv-none-elf-gcc-14.2.0-3-linux-x64.tar.gz
+export PATH="$PWD/xpack-riscv-none-elf-gcc-14.2.0-3/bin:$PATH"
+```
+Note: your downloaded .tar.gz may be called differently
+Note: editing PATH variable is per shell. If you want this command to be permanent put in your ```~/.bashrc``` (with the exact path).
 
 Try building any baremetal application from [cva6-baremetal-bsp](cva6-baremetal-bsp).
 
@@ -59,6 +71,8 @@ If interested in only building a single app you can set the variable ```bmarks``
 ```bash
 make all XLEN=64 bmarks=soc_context_test
 ```
+Note: The makefile is defined to use riscv-none-elf-gcc, like explained in the gcc section. If you manage to install your gcc version, nothing stops you from setting your own. The xpack version has proved to work.
+
 Indeed, soc_context_test, helloworld, and helloworld_printf are the only ones I tested.
 
 If you encounter the infamous error ```relocation truncated to fit: R_RISCV_HI20 against symbol``` it probably means that you have to recompile gcc. The explanation is in gcc section.
