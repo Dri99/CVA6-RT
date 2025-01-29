@@ -89,28 +89,130 @@ While installing vivado, you can reduce the total install size by opting out the
 
 # Cva6 Project
 
-follow steps on cva6 project
+Try following this explanation together with cva6 README, I may forgot something.
+
+cva6 Project will be directly pulled in by:
+
+```
+git submodule init
+git submodules update recursive
+```
+
+However, the only thing you may need for running binaries on the soft-cva6 is ```cva6/corev_apu/fpga/ariane.cfg```, which is passed to openocd to connect to the JTAG probe on the FPGA.
+
+## Simulating with Verilator
+Although you migh never need it, you can simulate cva6 and binaries with verilator.
+
+This part is Work in progress, but you can follow cva6/README.md to do initialise it.
+
+# Zephyr
+This part differs depending on wether you are installing zephyr for the first time or if you have a previous installation that we can modify.
+## First installation
+
+You should be able to follow the standard installation process. The only difference to apply is when you run ```west init```
+
+```bash
+west init ~/zephyrproject -m https://github.com/Dri99/zephyr-genesysII.git 
+```
+The only difference is to add the switch ```-m https://github.com/Dri99/zephyr-genesysII.git``` to tell west to use the modified repo as remote.
+
+You don't have to use ```~/zephyrproject``` as destination directory, but it should be consistent with what you chose in previous steps.
+
+Once installation is completed, you can build an application with the switch ```-b genesysII``` to target the new processor.
+
+For a simple test, you can run:
+```bash
+west build samples/synchronization-sched -b genesysII
+```
+What we care will be the static executable to run with GDB under ```buid/zephyr/zephyr.elf```.
+
+For a more advance application that can stress the automatic load/store of registers use:
+```bash
+west build -p always samples/synchronization-sched -b genesysII --build-dir build-sched
+```
+Note:I prefer to set different build directories for different samples to avoid having to recompile always. You can avoid it.
+
+## Previous installation
+In this case you just want to change the remote for the zephyr subdirectory.
+Supposing you followed the standard tutorial and successfully installed zephyr in zephyr-project/zephyr
+
+```bash
+cd zephyr-project/zephyr
+git remote rename origin upstream
+git remote add origin https://github.com/Dri99/zephyr-genesysII.git
+git pull origin main --set-upstream --rebase
+```
+What this snippet does is changing the origin repo to my repo, while saving the orginial one as upstream
+Then it moves the local main branch to the new origin/main, setting it as new remote branch to receive updates, if any.
+
+
 
 # Openocd any version
 
 OpenOCD (On Chip Debugger) is used as common interface between different debuggers (e.g. JLink, Ftdi chips, ...) with GDB. Usually, a probe is connected to the target and communicates with JTAG/SWD. The protocol used to talk with this probe differs by vendor and is sometimes proprietary. OpenOCD supports many of this protocols, allowing a single framework to manage them all, as soon as such probe is supported.
 
+Usually it is present on many package managers. For ubuntu:
+```
+apt install openocd
+```
+
+
+
 
 # How to run
+In order to run code on the soft-cva6, you need 2 usb cables connected to the Jtag port and Usart port. The first one is used to program the FPGA and debug code running on the soft-core. The second one shows output.
 
-Openocd (can be ignored, apart if it gives errors)
+First step: flash the FPGA
+## FPGA bitstream
+You Should find some release of CVA6 bitstream on the release page. 
+The fpga may come with a preinstalled cva6 inside, but in case you want to flash a different bitstream, you have to: ```Open vivado``` &rarr ```Open Hardware Manager``` $arr ```open target```. At this point you should see xc7k325t in the hardware window; right-click &arr ```Program device``` and select the bitstream you download. Leave anything as it is and click ```Program```.
 
-minicom to read serial output
+An alternative flashing procedure can be done with openFPGAloader:
 
-gdb executable.elf
+```
+openFPGALoader -b genesys2 --bitstream ariane_xilinx.bit
+openFPGALoader -b genesys2 -r
+```
+## Run a binary
+With the fpga loaded, you'll need 3 shells for the upcoming commands.
+### Shell 1 - Openocd
+Just run:
+```
+openocd -f cva6/corev_apu/fpga/ariane.cfg
+```
+You can ignore this shell, as soon as it doesn't show any error. Keep the command running
 
+### Shell 2 - Minicom
+You can install minicom from apt or any other package manager. It will show the output of ```printf()```s of the program.
+To run it, first identify on which tty is writing usart. Usually is goes on ```/dev/ttyUSB0```, but you can double-check with:
+```
+ls /dev/ttyUSB*
+```
+To connect to it just:
+```
+minicom -D /dev/ttyUSBx -b 115200
+```
+### Shell 3 - GDB
+
+Run the GDB shipped with the toolchain you used. If you used ```riscv-none-elf-gcc``` it should be called ```riscv-none-elf-gdb```
+
+```
+riscv-none-elf-gdb executable.elf
+```
+The executable can be either a program built with cva6-baremetal-bsp or under zephyr/build/zephyr/zephyr.elf
+
+When in gdb connect to the waiting openocd through the socket on port :3333
+```
 target remote :3333
+```
+Once done, you can reset the core (only the software, the FPGA stays in place) with ```monitor reset halt```
+or ```load``` the binary to it.
 
-monitor reset halt
+Then set some breakpoint (if you want) : ```breakpoint main```
 
-load
+and run ```continue```
 
-breakpoint (if any)
+For a better list of what you can do with GDB, reference the online guide.
 
-continue
+Have fun!!!
 
