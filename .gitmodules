@@ -1,3 +1,4 @@
 [submodule "cva6-baremetal-bsp"]
 	path = cva6-baremetal-bsp
 	url = https://github.com/Dri99/cva6-baremetal-bsp.git
+	branch = main
