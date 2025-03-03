@@ -38,6 +38,12 @@ For the moment, the only version I ported is the 64 bit one, but from the pull r
 
 The additional board is called ```genesysII```.
 
+There are some additional configs in the fork: 
+- CONFIG_SOC_SERIES_PROVIDE_HW_CONTEXT_STACK : enables automatic store of context managed by hardware. When disabled isr enter works as vanilla core
+- CONFIG_SOC_SERIES_PROVIDE_HW_CONTEXT_UNSTACK : enables automatic restore of context managed by hardware. When disabled, isr exit works as in vanilla core
+- CONFIG_SOC_SERIES_CVA6_PROVIDE_TEST_POWEROFF : This option, together with _FPGA_POWEROFF is used to chose the behavior when main ends and board powers off. In Verilator, a special variable (tohost) has to be written to tell the simulator that simulation has ended. 
+- CONFIG_SOC_SERIES_CVA6_PROVIDE_FPGA_POWEROFF : Look CONFIG_SOC_SERIES_CVA6_PROVIDE_TEST_POWEROFF. Since FPGA doesn't have other behaviors, it can simply do an infinite loop. A possible improvement would be to put an assembly WFI (wait for interrupt).
+
 ## Hardware customisations
 
 The original core cva6 has been modified mainly in the issue stage, adding a Shadow Register Unit (SHRU) at the level of the register file, to increase management speed of interrupts. This work is higly inspired to [CV32RT](https://ar5iv.labs.arxiv.org/html/2311.08320#S3.SS1) which was brought on the CVA4. The increased complexity of its successor forced me to apply some differences, especially in the communication between the SHRU and the memory, that here happens through the Cache, and in the communication with the CSR Register File.
@@ -74,6 +80,7 @@ In theory, in Zephyr the scheduling decision for the next process to execute is 
 - CSR_SHADOW_STATUS (0x7C7)
 
   It is split in many parts, some of which read-only and others write only
+  - en_reg_save: enables automatic store in 
   - start_load: starts restoring registers from RAM at the stack frame at CSR_LOAD_ESF to the shadow registers. After a 1 is written to it, it freezes the value in CSR_LOAD_ESF until the restore has complete. (Write only)
   - save_ready: the SHRU is not running a context save, so it can treat a new interrupt. (Read-only)
   - load_level: registers not yet restores. It counts backwards from 16 down to 0. At 0 the mret can commits.
@@ -81,10 +88,10 @@ In theory, in Zephyr the scheduling decision for the next process to execute is 
   - save_level: same as load_level, but it shows progress in current store. It decrement from 15 to 0. (Red only)
 
 
-|31 . . . 27|      26    | 25 |     24     | 23 . . . . 21| 20 . . . 16 | 15 . . . . 13 | 12 . . 8 | 7 . . . 5 | 4 . . . . 0 |
-| :-------: | :--------: |:-: | :--------: | :----------: | :--------:  | :----------:  | :------: | :--------:| :---------: |
-| Reserved  | start_load | 0  | save_ready |  Reserved    | load_level  |  Reserved     | raddr    | Reserved  | save_level  |
-|      5    |      1     | 1  |     1      |  3           |  5          | 3             | 5        | 3         | 5           |
+|31 . . . 29|      28     |  27 |      26    |  25 |     24     | 23 . . . . 21| 20 . . . 16 | 15 . . . . 13 | 12 . . 8 | 7 . . . 5 | 4 . . . . 0 |
+| :-------: | :--------:  | :-: | :--------: | :-: | :--------: | :----------: | :--------:  | :----------:  | :------: | :--------:| :---------: |
+| Reserved  | en_reg_save |  0  | start_load |  0  | save_ready |  Reserved    | load_level  |  Reserved     | raddr    | Reserved  | save_level  |
+|      5    |      1      |  1  |      1     |  1  |     1      |  3           |  5          | 3             | 5        | 3         | 5           |
 
 - CSR_SHADOW_REG (0x7C8)
     Shows the content of shadow register addressed by CSR_SHADOW_STATUS.raddr, even after context store has concluded. See CSR_SHADOW_STATUS for more details. (Read Only)
